@@ -1,0 +1,10 @@
+# Downloaded official Supabase Compose bundle and generated credentials
+/stack/
+.env
+.env.*
+!.env.example
+
+# Runtime/database/storage state
+volumes/
+*.dump
+*.sql.gz
