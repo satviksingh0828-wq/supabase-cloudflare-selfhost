@@ -1,72 +1,77 @@
-# Supabase Self-Hosted with Docker + Cloudflare Tunnel
+# Minimal Supabase on Docker + Cloudflare Tunnel
 
-A small deployment-only repository for running a self-hosted Supabase stack with persistent local data and an optional Cloudflare Tunnel. It contains no application/frontend code and no credentials. The official Supabase Docker configuration and runtime files (pinned to `self-hosted/v0.8.2`) are included in `supabase/docker/` in this repo; the launchers copy them locally into the ignored `stack/` directory.
+This repository runs a **minimal Supabase API stack** on your own Windows or Linux device. It starts only:
 
-The official Supabase bundle includes Postgres, Storage, Realtime, Auth, REST/API gateway, Studio, and supporting services. Auth, REST, and the gateway are dependencies of the standard self-hosted stack; this repo does not include a separate app.
+- Postgres database
+- PostgREST (database REST API)
+- Realtime (WebSocket/database changes)
+- Storage API and its image proxy
+- The API gateway needed to expose those APIs through one URL
 
-## Requirements
+It does **not** start Supabase Studio (admin panel), Supabase Auth sign-up/login, Edge Functions, analytics/logging, or the connection pooler. The official Supabase Docker bundle and key-generation utilities are included in `supabase/docker/`. The launchers select only the services listed above. First run still pulls their Docker images.
 
-- Docker Desktop (Windows/macOS) or Docker Engine and Compose v2 (Linux).
-- Internet access on first start so Docker can pull the Supabase service images. The Compose files themselves are included here; the launcher no longer downloads the Supabase source archive.
-- Linux/macOS: Bash and OpenSSL. Windows: PowerShell 5.1+ and Docker Desktop; WSL is not required.
+## Windows: run the stack
 
-## Windows: PowerShell setup
+Install and start Docker Desktop. From PowerShell in the cloned repository run:
 
 ```powershell
 Set-ExecutionPolicy -Scope Process Bypass
 .\start-windows.ps1
 ```
 
-The first run copies the bundled Supabase configuration, generates unique credentials inside a temporary Docker container, and starts the stack. Docker downloads the required service images on first launch. The launcher prompts whether to enable Cloudflare Tunnel. If yes, it securely prompts for your existing Cloudflare tunnel token and public hostname, then writes the local environment file automatically. You do not need to edit `.env` manually.
+The launcher generates unique database/API credentials, asks for your Cloudflare public hostname (optional; press Enter if the route is not configured yet), starts the minimal services, and prints the Supabase URL and keys in the PowerShell window. It does not ask for or store your Cloudflare tunnel token.
 
-To clone this public repo first:
+## Cloudflare Tunnel running as a Windows service
 
-```powershell
-git clone https://github.com/satviksingh0828-wq/supabase-cloudflare-selfhost.git
-cd supabase-cloudflare-selfhost
+If `cloudflared.exe service install <TUNNEL_TOKEN>` is already installed on this same Windows machine, keep using that host service. In the Cloudflare Tunnel dashboard, add a Published application route for your hostname and set **Service URL** to:
+
+```text
+http://localhost:8000
 ```
 
-## Linux/macOS: one command
+Because `cloudflared.exe` is running on the Windows host—not in Docker—it connects to the API gateway through this localhost port. The launcher binds the gateway to localhost only. Do not use `http://api-gw:8000` for the host-installed Windows tunnel service.
+
+Once the route exists, rerun the launcher and enter its public hostname when prompted. The console then prints the public Supabase URL and generated keys. Keep the service-role/secret keys private; they bypass Row Level Security and must never go in browser code. If a tunnel token has been pasted into chat or otherwise exposed, rotate it in Cloudflare before relying on it.
+
+## Linux/macOS
 
 ```bash
 bash start.sh
 ```
 
-The gateway/API and Postgres ports bind to localhost on the host. Supabase data persists under `stack/volumes/` and is preserved by normal restarts and `docker compose down`.
+The API gateway binds to `127.0.0.1:8000`. A host-installed `cloudflared` connector should use `http://localhost:8000` as its origin as well.
 
-## Cloudflare Tunnel
+## Connection endpoints and keys
 
-Create a remotely managed Tunnel in the Cloudflare dashboard first. The launcher accepts its tunnel token locally; it does not ask you to paste secrets into chat or commit them. Create a **Published application** route for your chosen hostname and set its **Service URL** to:
+The launchers print:
+
+- `SUPABASE_URL` — local `http://localhost:8000` or the public HTTPS hostname you enter.
+- REST API — `/rest/v1`
+- Storage — `/storage/v1`
+- Realtime — `/realtime/v1`
+- Anonymous and service-role keys, plus current publishable/secret key values.
+
+This reduced setup has no Supabase Auth service, so Auth sign-up, login, and `/auth/v1` are not available. Realtime/Storage/REST use the generated JWT/API keys; configure Postgres grants and Row Level Security policies deliberately before exposing application data. The service-role/secret key is privileged and server-only.
+
+Postgres itself is not published on a host port or through the HTTP tunnel. To access it locally, run from `stack/`:
+
+```powershell
+docker compose exec db psql -U postgres
+```
+
+## Persistence and operations
+
+Database data is stored in `stack/volumes/db/data/`; uploaded files are stored in `stack/volumes/storage/`. Normal restarts and `docker compose down` keep these folders. Never use `docker compose down -v` or delete `stack/volumes/` unless you intend to erase the data. Local persistence is not a backup: make encrypted, off-device database and Storage backups and test restores.
+
+From `stack/`:
 
 ```text
-http://api-gw:8000
-```
-
-That service name is reachable by the cloudflared container over Compose's private network. The launchers print this origin address. The tunnel token is a bearer secret: anyone possessing it can run the tunnel, so protect the local `stack/.env` file and rotate the token if exposed. The token alone cannot create the tunnel or hostname route; those are configured in the Cloudflare dashboard.
-
-For correct Auth callbacks and generated links, use the Windows launcher's hostname prompt or set these values in `stack/.env` on Linux/macOS:
-
-```dotenv
-SUPABASE_PUBLIC_URL=https://your-hostname.example.com
-API_EXTERNAL_URL=https://your-hostname.example.com/auth/v1
-```
-
-Then restart the stack. Do not publish Postgres, Docker control access, or unprotected Studio administration through a public route. Apply appropriate Cloudflare Access policies and keep Supabase RLS enabled.
-
-## Operations and data safety
-
-Run from `stack/`:
-
-```bash
 docker compose ps
 docker compose logs -f
-docker compose down          # stop; retains data
-docker compose up -d --wait  # restart
+docker compose down       # stop; retain data
 ```
 
-Never use `docker compose down -v` or delete `stack/volumes/` unless you intend to destroy the stored data. Local persistence is not a backup. Back up Postgres and Storage objects together to encrypted off-host storage and periodically test restoration. Restrict host/Docker access, protect generated database/JWT/API keys, and do not put secret/service-role keys in client-side code.
+## Official documentation
 
-## References
-
-- [Supabase self-hosting with Docker](https://supabase.com/docs/guides/self-hosting/docker)
+- [Supabase Docker self-hosting](https://supabase.com/docs/guides/self-hosting/docker)
 - [Cloudflare Tunnel quickstart](https://developers.cloudflare.com/tunnel/get-started/)
