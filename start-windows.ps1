@@ -33,20 +33,14 @@ try {
     Invoke-Docker @('info') | Out-Null
 
     if (-not (Test-Path (Join-Path $Stack 'docker-compose.yml'))) {
-        Write-Host "Downloading official Supabase self-hosted bundle ($Ref)..."
-        New-Item -ItemType Directory -Force -Path $Stack | Out-Null
-        $zip = Join-Path $env:TEMP 'supabase-self-hosted-v0.8.2.zip'
-        $extract = Join-Path $env:TEMP 'supabase-self-hosted-v0.8.2'
-        Invoke-WebRequest -Uri "https://codeload.github.com/supabase/supabase/zip/refs/tags/$Ref" -OutFile $zip
-        if (Test-Path $extract) { Remove-Item -Recurse -Force $extract }
-        Expand-Archive -LiteralPath $zip -DestinationPath $env:TEMP -Force
-        $upstream = Join-Path $extract 'docker'
+        $upstream = Join-Path $Root 'supabase\docker'
         if (-not (Test-Path (Join-Path $upstream 'docker-compose.yml'))) {
-            throw "Could not find the official Docker bundle at $upstream"
+            throw "Bundled Supabase Docker files are missing from $upstream"
         }
+        Write-Host "Copying the Supabase Docker bundle included in this repository ($Ref)..."
+        New-Item -ItemType Directory -Force -Path $Stack | Out-Null
         Copy-Item -Path (Join-Path $upstream '*') -Destination $Stack -Recurse -Force
         Copy-Item -LiteralPath (Join-Path $upstream '.env.example') -Destination $Stack -Force
-        Remove-Item -Force $zip
         Copy-Item (Join-Path $Stack '.env.example') $EnvFile -Force
         Write-Host 'Generating unique Supabase keys and passwords inside a temporary Docker container...'
         $mount = "type=bind,source=$Stack,target=/work"

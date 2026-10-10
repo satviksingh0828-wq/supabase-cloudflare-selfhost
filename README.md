@@ -1,14 +1,14 @@
 # Supabase Self-Hosted with Docker + Cloudflare Tunnel
 
-A small deployment-only repository for running a self-hosted Supabase stack with persistent local data and an optional Cloudflare Tunnel. It contains no application/frontend code and no credentials. On first start, the launchers download the official Supabase Docker bundle, pinned to `self-hosted/v0.8.2`, into the ignored `stack/` directory.
+A small deployment-only repository for running a self-hosted Supabase stack with persistent local data and an optional Cloudflare Tunnel. It contains no application/frontend code and no credentials. The official Supabase Docker configuration and runtime files (pinned to `self-hosted/v0.8.2`) are included in `supabase/docker/` in this repo; the launchers copy them locally into the ignored `stack/` directory.
 
 The official Supabase bundle includes Postgres, Storage, Realtime, Auth, REST/API gateway, Studio, and supporting services. Auth, REST, and the gateway are dependencies of the standard self-hosted stack; this repo does not include a separate app.
 
 ## Requirements
 
 - Docker Desktop (Windows/macOS) or Docker Engine and Compose v2 (Linux).
-- Internet access for the initial official bundle download and Docker image pulls.
-- Linux/macOS: Bash, curl, tar, and OpenSSL. Windows: PowerShell 5.1+ and Docker Desktop; WSL is not required.
+- Internet access on first start so Docker can pull the Supabase service images. The Compose files themselves are included here; the launcher no longer downloads the Supabase source archive.
+- Linux/macOS: Bash and OpenSSL. Windows: PowerShell 5.1+ and Docker Desktop; WSL is not required.
 
 ## Windows: PowerShell setup
 
@@ -17,7 +17,7 @@ Set-ExecutionPolicy -Scope Process Bypass
 .\start-windows.ps1
 ```
 
-The first run downloads Supabase, generates unique credentials inside a temporary Docker container, and starts the stack. It prompts whether to enable Cloudflare Tunnel. If yes, it securely prompts for your existing Cloudflare tunnel token and public hostname, then writes the local environment file automatically. You do not need to edit `.env` manually.
+The first run copies the bundled Supabase configuration, generates unique credentials inside a temporary Docker container, and starts the stack. Docker downloads the required service images on first launch. The launcher prompts whether to enable Cloudflare Tunnel. If yes, it securely prompts for your existing Cloudflare tunnel token and public hostname, then writes the local environment file automatically. You do not need to edit `.env` manually.
 
 To clone this public repo first:
 
